@@ -26,7 +26,7 @@
       </div>
 
       <div class="guess" id="guess1">
-        <b>Guess 2: 1212</b>
+        <b>Guess 2: 1122</b>
         <div class="row">
           <div class="buttons" id="g2"></div>
           <button class="resetRow" onclick="resetRow(1)">&#x27F2;</button>
@@ -42,8 +42,8 @@
       </div>
 
       <div class="guess" id="guess3">
-        <b>Guess 4: 1122</b>
-        <span class="tiebreak-note">(0&nbsp;=&nbsp;solution is 2211)</span>
+        <b>Guess 4: 1212</b>
+        <span class="tiebreak-note">(0&nbsp;=&nbsp;solution is 2121)</span>
         <div class="row">
           <div class="buttons" id="g4"></div>
           <button class="resetRow" onclick="resetRow(3)">&#x27F2;</button>
@@ -67,7 +67,7 @@
         </p>
         <ol>
           <li><b>Guess 1111</b> in the game and enter the result here.</li>
-          <li><b>Guess 1212</b> and enter the result.</li>
+          <li><b>Guess 1122</b> and enter the result.</li>
           <li>
             <b>Guess 2112</b> and enter the result. This will give you the
             solution, or 4th guess.
@@ -114,7 +114,7 @@
     <div id="footerTagline">Made by Doma(#36888, discord: doma__)</div>
 
     <script>
-      const guesses = ["1111", "1212", "2112", "1122"];
+      const guesses = ["1111", "1122", "2112", "1212"];
       let feedback = [null, null, null, null];
       let buttons = [[], [], [], []];
       let guessToUse = [...guesses];
@@ -141,7 +141,7 @@
         });
       }
 
-      const TIEBREAK_PAIR = new Set(["1122", "2211"]);
+      const TIEBREAK_PAIR = new Set(["1212", "2121"]);
       function isTiebreakNeeded(possible) {
         return (
           possible.length === 2 && possible.every((s) => TIEBREAK_PAIR.has(s))
@@ -418,7 +418,7 @@
               fb[3] = s4;
 
               if (s4 === 4) solvedIn = 4;
-              else if (g4 === "1122" && s4 === 0) solvedIn = 5;
+              else if (g4 === "1212" && s4 === 0) solvedIn = 5;
               else failures.push({ secret, fb });
 
               break;
