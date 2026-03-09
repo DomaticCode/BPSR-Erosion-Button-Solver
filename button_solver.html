@@ -1,0 +1,451 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Erosion Button Solver</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div id="header">
+        <h2>Erosion Button Solver</h2>
+        <button id="themeToggle" onclick="toggleTheme()">🌙 Dark</button>
+      </div>
+
+      <label id="advancedLabel"
+        ><input type="checkbox" id="advancedMode" onchange="update()" /> Enable
+        Advanced Mode</label
+      >
+
+      <div class="guess" id="guess0">
+        <b>Guess 1: 1111</b>
+        <div class="row">
+          <div class="buttons" id="g1"></div>
+          <button class="resetRow" onclick="resetRow(0)">&#x27F2;</button>
+        </div>
+      </div>
+
+      <div class="guess" id="guess1">
+        <b>Guess 2: 1212</b>
+        <div class="row">
+          <div class="buttons" id="g2"></div>
+          <button class="resetRow" onclick="resetRow(1)">&#x27F2;</button>
+        </div>
+      </div>
+
+      <div class="guess" id="guess2">
+        <b id="g3label">Guess 3: 2112</b>
+        <div class="row">
+          <div class="buttons" id="g3"></div>
+          <button class="resetRow" onclick="resetRow(2)">&#x27F2;</button>
+        </div>
+      </div>
+
+      <div class="guess" id="guess3">
+        <b>Guess 4: 1122</b>
+        <span class="tiebreak-note">(0&nbsp;=&nbsp;solution is 2211)</span>
+        <div class="row">
+          <div class="buttons" id="g4"></div>
+          <button class="resetRow" onclick="resetRow(3)">&#x27F2;</button>
+        </div>
+      </div>
+
+      <div id="result"></div>
+      <div class="possible" id="possible"></div>
+
+      <button id="resetAll" onclick="resetAll()">Reset All</button>
+
+      <div id="testSummary"></div>
+
+      <div id="instructions">
+        <h3>How to use</h3>
+        <p>
+          This follows a strict sequence of guesses to solve the correct
+          sequence in at most 5 total guesses. To use, simply enter the
+          <span class="g3-fiftyfifty">correct value for each guess</span>
+          as you make them in the game.
+        </p>
+        <ol>
+          <li><b>Guess 1111</b> in the game and enter the result here.</li>
+          <li><b>Guess 1212</b> and enter the result.</li>
+          <li>
+            <b>Guess 2112</b> and enter the result. This will give you the
+            solution, or 4th guess.
+          </li>
+        </ol>
+        <p>
+          Buttons that are greyed out are impossible given the results entered.
+          This shows that you have made a mistake either pressing buttons in
+          game, or entering results here.
+        </p>
+        <p>
+          Solves all 16 possible sequences in at most 5 guesses.
+          <b>(3.5 average)</b>
+        </p>
+        <p>
+          <br />
+          <b>Advanced Mode:</b><br />
+          After the first two results are known, if only two sequences remain
+          the tool will suggest a direct 50/50 guess instead of the standard
+          Guess 3. This is shown in
+          <span class="g3-fiftyfifty">orange.</span><br />
+          it may solve it in 3 steps, but there is still the 50/50 chance of
+          needing 4. You can
+          <a
+            href="#"
+            id="runTestLink"
+            onclick="
+              runFullTest();
+              return false;
+            "
+            >run a full test</a
+          >
+          to see the distribution across all 16 sequences. (Advanced mode
+          checked matters for results, and a table is logged to f12 console.)
+        </p>
+
+        <p>
+          Solves all 16 possible sequences in at most 5 guesses.
+          <b>(3.25 average)</b>
+        </p>
+      </div>
+    </div>
+
+    <script>
+      const guesses = ["1111", "1212", "2112", "1122"];
+      let feedback = [null, null, null, null];
+      let buttons = [[], [], [], []];
+      let guessToUse = [...guesses];
+
+      const sequences = [];
+      for (let a of ["1", "2"])
+        for (let b of ["1", "2"])
+          for (let c of ["1", "2"])
+            for (let d of ["1", "2"]) sequences.push(a + b + c + d);
+
+      function score(secret, guess) {
+        let n = 0;
+        for (let i = 0; i < 4; i++) if (secret[i] === guess[i]) n++;
+        return n;
+      }
+
+      function filterPossible(fb, used, slots) {
+        if (slots === undefined) slots = used.length;
+        return sequences.filter((s) => {
+          for (let i = 0; i < slots; i++) {
+            if (fb[i] !== null && score(s, used[i]) !== fb[i]) return false;
+          }
+          return true;
+        });
+      }
+
+      const TIEBREAK_PAIR = new Set(["1122", "2211"]);
+      function isTiebreakNeeded(possible) {
+        return (
+          possible.length === 2 && possible.every((s) => TIEBREAK_PAIR.has(s))
+        );
+      }
+
+      function possibleScores(guessSeq, possibleSecrets) {
+        const s = new Set();
+        for (const sec of possibleSecrets) s.add(score(sec, guessSeq));
+        return s;
+      }
+
+      function updateButtonStates() {
+        for (let row = 0; row < 4; row++) {
+          const prevEntered = row === 0 || feedback[row - 1] !== null;
+
+          if (!prevEntered) {
+            buttons[row].forEach((btn) => {
+              btn.classList.remove("impossible", "selected");
+              btn.classList.add("locked");
+              btn.disabled = true;
+            });
+            continue;
+          }
+
+          const fbOther = [...feedback];
+          fbOther[row] = null;
+          const possible = filterPossible(fbOther, guessToUse, 4);
+          const valid = possibleScores(guessToUse[row], possible);
+
+          buttons[row].forEach((btn, val) => {
+            btn.classList.remove("locked");
+            const isImpossible = !valid.has(val);
+            const isSelected = feedback[row] === val;
+            btn.classList.toggle("impossible", isImpossible && !isSelected);
+            btn.disabled = isImpossible && !isSelected;
+          });
+        }
+      }
+
+      function update() {
+        const adv = document.getElementById("advancedMode").checked;
+        const g3label = document.getElementById("g3label");
+        const guess4Row = document.getElementById("guess3");
+
+        g3label.className = "";
+        if (adv) {
+          if (feedback[0] !== null && feedback[1] !== null) {
+            const remaining = sequences.filter(
+              (s) =>
+                score(s, guesses[0]) === feedback[0] &&
+                score(s, guesses[1]) === feedback[1]
+            );
+            if (remaining.length === 1) {
+              g3label.innerText = "✅ Solution: " + remaining[0];
+              g3label.className = "g3-solution";
+              guessToUse[2] = guesses[2];
+            } else if (remaining.length === 2 && !isTiebreakNeeded(remaining)) {
+              g3label.innerHTML =
+                "⚡ Guess 3 (50/50): <u>" + remaining[0] + "</u>";
+              g3label.className = "g3-fiftyfifty";
+              guessToUse[2] = remaining[0];
+            } else {
+              g3label.innerText = "Guess 3: 2112";
+              guessToUse[2] = guesses[2];
+            }
+          } else {
+            g3label.innerText = "Guess 3: unknown";
+            guessToUse[2] = guesses[2];
+          }
+        } else {
+          g3label.innerText = "Guess 3: 2112";
+          guessToUse[2] = guesses[2];
+        }
+
+        const possible = filterPossible(feedback, guessToUse, 3);
+        const result = document.getElementById("result");
+        const possibleDiv = document.getElementById("possible");
+
+        const showGuess4 = feedback[2] !== null && isTiebreakNeeded(possible);
+        guess4Row.style.display = showGuess4 ? "block" : "none";
+
+        updateButtonStates();
+
+        if (possible.length === 0) {
+          result.className = "";
+          result.innerHTML = "No sequence matches that feedback.";
+          possibleDiv.innerHTML = "";
+          return;
+        }
+
+        if (possible.length === 1) {
+          result.className = "solution";
+          result.innerHTML =
+            "&#x2705; Solution: <span style='font-size:1.3em;letter-spacing:0.1em;font-family:monospace'>" +
+            possible[0] +
+            "</span>";
+          possibleDiv.innerHTML = "";
+          return;
+        }
+
+        if (showGuess4 && feedback[3] !== null) {
+          const finalPossible = filterPossible(feedback, guessToUse, 4);
+          if (finalPossible.length === 1) {
+            result.className = "solution";
+            result.innerHTML =
+              "&#x2705; Solution: <span style='font-size:1.3em;letter-spacing:0.1em;font-family:monospace'>" +
+              finalPossible[0] +
+              "</span>";
+            possibleDiv.innerHTML = "";
+          } else {
+            result.className = "";
+            result.innerHTML = "Unexpected — multiple remain.";
+            possibleDiv.innerHTML = "Remaining: " + finalPossible.join(" ");
+          }
+          return;
+        }
+
+        if (showGuess4) {
+          result.className = "";
+          result.innerHTML = "";
+          possibleDiv.innerHTML =
+            "Tiebreaker needed — enter Guess 4 result above.";
+          return;
+        }
+
+        possibleDiv.innerHTML =
+          "Possible sequences remaining: " + possible.join(" ");
+        result.className = "";
+        result.innerHTML = "";
+      }
+
+      function selectButton(row, value) {
+        feedback[row] = value;
+        buttons[row].forEach((btn) => btn.classList.remove("selected"));
+        buttons[row][value].classList.add("selected");
+        update();
+      }
+
+      function createButtons(containerId, row, maxVal) {
+        const container = document.getElementById(containerId);
+        for (let i = 0; i <= maxVal; i++) {
+          const btn = document.createElement("button");
+          btn.innerText = i;
+          btn.onclick = () => selectButton(row, i);
+          container.appendChild(btn);
+          buttons[row].push(btn);
+        }
+      }
+
+      function resetRow(row) {
+        for (let r = row; r < 4; r++) {
+          feedback[r] = null;
+          buttons[r].forEach((btn) => {
+            btn.classList.remove("selected");
+          });
+          guessToUse[r] = guesses[r];
+        }
+        update();
+      }
+
+      function resetAll() {
+        feedback = [null, null, null, null];
+        guessToUse = [...guesses];
+        buttons.forEach((row) =>
+          row.forEach((btn) => {
+            btn.classList.remove("selected", "impossible");
+            btn.disabled = false;
+          })
+        );
+        document.getElementById("g3label").className = "";
+        document.getElementById("g3label").innerText = "Guess 3: 2112";
+        document.getElementById("guess3").style.display = "none";
+        document.getElementById("result").className = "";
+        document.getElementById("result").innerHTML = "";
+        document.getElementById("possible").innerHTML = "";
+        document.getElementById("testSummary").style.display = "none";
+        updateButtonStates();
+      }
+
+      function applyTheme(dark) {
+        document.documentElement.setAttribute(
+          "data-theme",
+          dark ? "dark" : "light"
+        );
+        document.getElementById("themeToggle").textContent = dark
+          ? "☀️ Light"
+          : "🌙 Dark";
+      }
+
+      function toggleTheme() {
+        const isDark =
+          document.documentElement.getAttribute("data-theme") === "dark";
+        applyTheme(!isDark);
+      }
+
+      // Default to system preference, fall back to dark
+      const prefersDark =
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
+      applyTheme(typeof prefersDark === "boolean" ? prefersDark : true);
+      // Keep in sync if system theme changes
+      if (window.matchMedia) {
+        window
+          .matchMedia("(prefers-color-scheme: dark)")
+          .addEventListener("change", (e) => applyTheme(e.matches));
+      }
+
+      function runFullTest() {
+        const adv = document.getElementById("advancedMode").checked;
+
+        const results = [];
+        const failures = [];
+        const dist = {};
+
+        sequences.forEach((secret) => {
+          let fb = [null, null, null, null];
+          let gTest = [...guesses];
+          let solvedIn = null;
+
+          for (let step = 0; step < 4; step++) {
+            const guess = gTest[step];
+            const s = score(secret, guess);
+            fb[step] = s;
+
+            // solved immediately
+            if (s === 4) {
+              solvedIn = step + 1;
+              break;
+            }
+
+            const possible = filterPossible(fb, gTest, step + 1);
+
+            if (possible.length === 1) {
+              solvedIn = step + 2; // next guess would be the solution
+              break;
+            }
+
+            // advanced mode 50/50 guess logic (same as UI)
+            if (adv && step === 1) {
+              const remaining = filterPossible(fb, gTest, 2);
+
+              if (remaining.length === 2 && !isTiebreakNeeded(remaining)) {
+                gTest[2] = remaining[0];
+              }
+            }
+
+            if (step === 2 && isTiebreakNeeded(possible)) {
+              const g4 = gTest[3];
+              const s4 = score(secret, g4);
+              fb[3] = s4;
+
+              if (s4 === 4) solvedIn = 4;
+              else if (g4 === "1122" && s4 === 0) solvedIn = 5;
+              else failures.push({ secret, fb });
+
+              break;
+            }
+          }
+
+          if (!solvedIn) solvedIn = 99;
+
+          dist[solvedIn] = (dist[solvedIn] || 0) + 1;
+          results.push({ secret, solved_in: solvedIn });
+        });
+
+        const validKeys = Object.keys(dist)
+          .map(Number)
+          .filter((n) => n < 99);
+
+        const worstCase = validKeys.length ? Math.max(...validKeys) : "?";
+
+        let summary = `Mode: ${adv ? "Advanced" : "Normal"}\n`;
+        summary += `─────────────────────────────────\n`;
+
+        for (let n = 1; n <= worstCase; n++) {
+          const label = n === 1 ? "1 guess " : `${n} guesses`;
+          summary += `Solved in ${label}: ${String(dist[n] || 0).padStart(
+            2
+          )} sequence(s)\n`;
+        }
+
+        if (dist[99])
+          summary += `FAILURES:           ${dist[99]} sequence(s)\n`;
+
+        summary += `─────────────────────────────────\n`;
+        summary += `Worst case: ${worstCase} guesses\n`;
+
+        if (failures.length === 0) {
+          summary += `All 16 sequences uniquely identified.`;
+        }
+
+        document.getElementById("testSummary").innerText = summary;
+        document.getElementById("testSummary").style.display = "block";
+
+        console.clear();
+        console.table(results);
+        console.log(summary);
+      }
+
+      createButtons("g1", 0, 3);
+      createButtons("g2", 1, 3);
+      createButtons("g3", 2, 3);
+      createButtons("g4", 3, 3);
+
+      updateButtonStates();
+    </script>
+  </body>
+</html>
