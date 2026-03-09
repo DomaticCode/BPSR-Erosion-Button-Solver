@@ -152,8 +152,16 @@
         return s;
       }
 
-      function updateButtonStates() {
+      function updateButtonStates(solvedAt = null) {
         for (let row = 0; row < 4; row++) {
+          if (solvedAt !== null && row > solvedAt) {
+            buttons[row].forEach((btn) => {
+              btn.classList.remove("impossible", "selected");
+              btn.classList.add("locked");
+              btn.disabled = true;
+          });
+          continue;
+        }
           const prevEntered = row === 0 || feedback[row - 1] !== null;
 
           if (!prevEntered) {
@@ -216,13 +224,28 @@
         }
 
         const possible = filterPossible(feedback, guessToUse, 3);
+        const solvedEarly = possible.length === 1;
+
         const result = document.getElementById("result");
         const possibleDiv = document.getElementById("possible");
 
         const showGuess4 = feedback[2] !== null && isTiebreakNeeded(possible);
         guess4Row.style.display = showGuess4 ? "block" : "none";
 
-        updateButtonStates();
+        let solvedAt = null;
+
+        for (let i = 0; i < 4; i++) {
+          if (feedback[i] === null) break;
+
+          const possibleNow = filterPossible(feedback, guessToUse, i + 1);
+
+          if (possibleNow.length === 1) {
+            solvedAt = i;
+            break;
+          }
+        }
+
+        updateButtonStates(solvedAt);
 
         if (possible.length === 0) {
           result.className = "";
